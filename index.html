@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Break Timer</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@600;700&family=Inter:wght@500;600&display=swap">
+<style>
+:root{--bg:#efe9e1;--fg:#2a211b;--muted:#6d6158;--panel:#f2561d;--ink:#1c0f08;--label:#d4291f;--btn:#fff;--line:#d9cfc4;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15130f;--fg:#f1e9df;--muted:#a1968b;--panel:#f2561d;--ink:#1c0f08;--label:#ff4a3d;--btn:#25201b;--line:#3a332c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#15130f;--fg:#f1e9df;--muted:#a1968b;--panel:#f2561d;--ink:#1c0f08;--label:#ff4a3d;--btn:#25201b;--line:#3a332c;color-scheme:dark}
+html:root:root{--bg:#0a0908;--fg:#f1e9df;--muted:#a1968b;--btn:#1b1815;--line:#35302a;--label:#ff4a3d;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:Inter,system-ui,Arial,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.2vh;padding:16px;transition:background .3s}
+#label{font:700 clamp(1.6rem,5vw,3rem)/1 Oswald,Impact,"Arial Narrow",sans-serif;letter-spacing:.12em;color:var(--label);background:none;border:0;text-align:center;width:min(90vw,14em);outline-offset:6px}
+#label:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(--fg);outline-offset:3px}
+.clock{display:flex;align-items:center;gap:.18em;font-size:min(26vw,27vh);max-width:100%}
+.clock.hrs{font-size:min(17vw,27vh)}
+[hidden]{display:none!important}
+.panel{position:relative;width:1.45em;height:1.5em;font:700 1em/1 Oswald,Impact,"Arial Narrow",sans-serif;color:var(--ink)}
+.panel>div{position:absolute;left:0;right:0;height:50%;overflow:hidden;background:var(--panel)}
+.panel span{position:absolute;left:0;right:0;height:200%;display:flex;align-items:center;justify-content:center;letter-spacing:.02em}
+.t,.ft{top:0;border-radius:.09em .09em 0 0;transform-origin:50% 100%}
+.b,.fb{bottom:0;border-radius:0 0 .09em .09em;transform-origin:50% 0}
+.t span,.ft span{top:0}.b span,.fb span{bottom:0}
+.fb{opacity:0}
+.panel::after{content:"";position:absolute;left:0;right:0;top:calc(50% - 2px);height:4px;background:var(--bg);z-index:5;opacity:.85}
+.go .ft{animation:fold .3s ease-in forwards;z-index:3}
+.go .fb{animation:unfold .3s .3s ease-out forwards;z-index:3}
+@keyframes fold{from{transform:perspective(700px) rotateX(0)}to{transform:perspective(700px) rotateX(-90deg);filter:brightness(.6)}}
+@keyframes unfold{0%{opacity:1;transform:perspective(700px) rotateX(90deg);filter:brightness(.6)}100%{opacity:1;transform:perspective(700px) rotateX(0);filter:brightness(1)}}
+.dots{display:flex;flex-direction:column;gap:.22em}
+.dots i{width:.1em;height:.1em;border-radius:50%;background:var(--fg);opacity:.8}
+.done .panel>div{animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{filter:brightness(.55)}}
+.ui{display:flex;flex-direction:column;align-items:center;gap:2.2vh;transition:opacity .25s}
+body.run{cursor:pointer}
+body.run .clock{font-size:min(27vw,40vh)}
+body.run .clock.hrs{font-size:min(17.5vw,40vh)}
+body.run #label{position:fixed;top:calc(16px + env(safe-area-inset-top,0px));left:0;right:0;margin:0 auto;transition:opacity .25s}
+body.run:not(.peek) #label{opacity:0;visibility:hidden;pointer-events:none}
+body.run .ui{position:fixed;left:0;right:0;bottom:0;padding:32px 16px calc(16px + env(safe-area-inset-bottom,0px));background:linear-gradient(transparent,var(--bg) 30%);cursor:default}
+body.run:not(.peek) .ui{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .25s,visibility 0s .25s}
+.row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center}
+button{font:600 1rem Inter,system-ui,sans-serif;color:var(--fg);background:var(--btn);border:1px solid var(--line);border-radius:10px;padding:10px 18px;min-height:44px;cursor:pointer}
+button:hover{border-color:var(--fg)}
+button.main{background:var(--panel);color:var(--ink);border-color:var(--panel);min-width:7.5em}
+button[aria-pressed="true"]{border-color:var(--panel);box-shadow:inset 0 0 0 1px var(--panel)}
+.custom{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;align-items:center;color:var(--muted);font-size:.95rem}
+input[type=number]{width:5em;font:600 1rem Inter,sans-serif;color:var(--fg);background:var(--btn);border:1px solid var(--line);border-radius:10px;padding:10px;min-height:44px}
+.hint{color:var(--muted);font-size:.85rem;text-align:center}
+@media (prefers-reduced-motion:reduce){.done .panel>div{animation:none}}
+</style>
+</head>
+<body>
+<input id="label" value="BREAK" aria-label="Timer title" maxlength="24">
+<div class="clock" id="clock" role="timer" aria-live="off">
+  <div class="panel" id="ph" hidden></div>
+  <div class="dots" id="dh" hidden><i></i><i></i></div>
+  <div class="panel" id="pm"></div>
+  <div class="dots"><i></i><i></i></div>
+  <div class="panel" id="ps"></div>
+</div>
+<div class="ui">
+
+<div class="row">
+  <button class="main" id="go">Start</button>
+  <button id="reset">Reset</button>
+  <button id="full">Full screen</button>
+</div>
+<div class="custom"><label for="hr">Custom time</label><input id="hr" type="number" min="0" max="99" value="0" aria-label="Hours"><span>hr</span><input id="min" type="number" min="0" max="59" value="8" aria-label="Minutes"><span>min</span><button id="set">Set</button></div>
+<p class="hint">Space starts or pauses. R resets. F toggles full screen. While running, click anywhere to show or hide these controls.</p>
+</div>
+<script>
+(function(){
+  function Panel(el){
+    el.innerHTML='<div class="t"><span></span></div><div class="b"><span></span></div><div class="ft"><span></span></div><div class="fb"><span></span></div>';
+    var s=el.querySelectorAll('span'),cur=null,timer;
+    this.set=function(v){
+      if(v===cur)return;
+      if(cur===null){for(var i=0;i<4;i++)s[i].textContent=v;cur=v;return}
+      clearTimeout(timer);
+      s[0].textContent=v;s[2].textContent=cur;s[3].textContent=v;
+      el.classList.remove('go');void el.offsetWidth;el.classList.add('go');
+      var old=cur;cur=v;
+      timer=setTimeout(function(){s[1].textContent=v;s[2].textContent=v;el.classList.remove('go')},650);
+      s[1].textContent=old;
+    };
+  }
+  var pm=new Panel(document.getElementById('pm')),ps=new Panel(document.getElementById('ps')),ph=new Panel(document.getElementById('ph')),dh=document.getElementById('dh');
+  var clock=document.getElementById('clock'),goBtn=document.getElementById('go'),label=document.getElementById('label');
+  var total=8*60,remaining=total*1000,running=false,endAt=0,iv=null,ac=null;
+  function pad(n){return n<10?'0'+n:''+n}
+  function render(){
+    var sec=Math.max(0,Math.ceil(remaining/1000)),hm=total>=3600,m=pad(Math.floor(sec/60)%60),s=pad(sec%60);
+    clock.classList.toggle('hrs',hm);ph.el=0;document.getElementById('ph').hidden=dh.hidden=!hm;
+    if(hm)ph.set(pad(Math.floor(sec/3600)));pm.set(m);ps.set(s);
+    document.title=(running||sec<total?(hm?pad(Math.floor(sec/3600))+':':'')+m+':'+s+' · ':'')+'Break Timer';
+  }
+  function beep(){
+    try{
+      ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+      for(var i=0;i<3;i++){
+        var o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime+i*.45;
+        o.frequency.value=880;o.connect(g);g.connect(ac.destination);
+        g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.35,t+.03);g.gain.exponentialRampToValueAtTime(.0001,t+.35);
+        o.start(t);o.stop(t+.4);
+      }
+    }catch(e){}
+  }
+  var wl=null;
+  function lock(){try{if('wakeLock' in navigator&&!wl){navigator.wakeLock.request('screen').then(function(s){wl=s;s.addEventListener('release',function(){wl=null});if(!running)unlock()}).catch(function(){wl=null})}}catch(e){}}
+  function unlock(){try{if(wl){wl.release();wl=null}}catch(e){}}
+  function tick(){
+    remaining=endAt-Date.now();
+    if(remaining<=0){remaining=0;stop();clock.classList.add('done');goBtn.textContent='Start';beep();}
+    render();
+  }
+  function start(){
+    if(remaining<=0)remaining=total*1000;
+    try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume()}catch(e){}
+    clock.classList.remove('done');
+    endAt=Date.now()+remaining;running=true;goBtn.textContent='Pause';document.body.classList.add('run');document.body.classList.remove('peek');
+    iv=setInterval(tick,200);tick();lock();
+  }
+  function stop(){running=false;clearInterval(iv);unlock();goBtn.textContent='Start';document.body.classList.remove('run','peek')}
+  function setTotal(min){
+    min=Math.min(5999,Math.max(1,Math.round(min)||1));
+    stop();clock.classList.remove('done');total=min*60;remaining=total*1000;
+    document.getElementById('hr').value=Math.floor(min/60);document.getElementById('min').value=min%60;render();mark();
+  }
+  function mark(){
+    document.querySelectorAll('#presets button').forEach(function(b){b.setAttribute('aria-pressed',String(+b.dataset.m*60===total))});
+  }
+  
+  goBtn.onclick=function(){running?stop():start()};
+  document.getElementById('reset').onclick=function(){setTotal(total/60)};
+  function fromInputs(){setTotal((+document.getElementById('hr').value||0)*60+(+document.getElementById('min').value||0))}
+  document.getElementById('set').onclick=fromInputs;
+  ['hr','min'].forEach(function(id){document.getElementById(id).addEventListener('keydown',function(e){if(e.key==='Enter')fromInputs()})});
+  function full(){try{document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()}catch(e){}}
+  document.getElementById('full').onclick=full;
+  document.addEventListener('keydown',function(e){
+    var tag=(e.target.tagName||'').toLowerCase();
+    if(tag==='input'||(tag==='button'&&e.key===' '))return;
+    if(e.key===' '){e.preventDefault();running?stop():start()}
+    else if(e.key==='r'||e.key==='R')setTotal(total/60);
+    else if(e.key==='f'||e.key==='F')full();
+  });
+  document.addEventListener('click',function(e){if(running&&!e.target.closest('.ui'))document.body.classList.toggle('peek')});
+  document.addEventListener('visibilitychange',function(){if(running){tick();if(document.visibilityState==='visible')lock()}});
+  render();mark();
+})();
+</script>
+</body>
+</html>
