@@ -93,7 +93,7 @@ input[type=number]{width:5em;font:600 1rem Inter,sans-serif;color:var(--fg);back
   var total=8*60,remaining=total*1000,running=false,endAt=0,iv=null,ac=null;
   function pad(n){return n<10?'0'+n:''+n}
   function render(){
-    var sec=Math.max(0,Math.ceil(remaining/1000)),hm=total>=3600,m=pad(Math.floor(sec/60)%60),s=pad(sec%60);
+    var sec=Math.max(0,Math.ceil(remaining/1000)),hm=sec>=3600,m=pad(Math.floor(sec/60)%60),s=pad(sec%60);
     clock.classList.toggle('hrs',hm);ph.el=0;document.getElementById('ph').hidden=dh.hidden=!hm;
     if(hm)ph.set(pad(Math.floor(sec/3600)));pm.set(m);ps.set(s);
     document.title=(running||sec<total?(hm?pad(Math.floor(sec/3600))+':':'')+m+':'+s+' · ':'')+'Break Timer';
