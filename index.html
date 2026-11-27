@@ -50,7 +50,17 @@ button[aria-pressed="true"]{border-color:var(--panel);box-shadow:inset 0 0 0 1px
 .custom{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;align-items:center;color:var(--muted);font-size:.95rem}
 input[type=number]{width:5em;font:600 1rem Inter,sans-serif;color:var(--fg);background:var(--btn);border:1px solid var(--line);border-radius:10px;padding:10px;min-height:44px}
 .hint{color:var(--muted);font-size:.85rem;text-align:center}
-@media (prefers-reduced-motion:reduce){.done .panel>div{animation:none}}
+.run-hint{display:none;position:fixed;bottom:calc(12px + env(safe-area-inset-bottom,0px));pointer-events:none}
+@media (pointer:coarse){
+  .shortcuts{display:none}
+  body.run:not(.peek) .run-hint{display:block;animation:hide-hint 3s forwards}
+}
+@keyframes hide-hint{0%,75%{opacity:1}100%{opacity:0}}
+#status:empty{display:none}
+@media (prefers-reduced-motion:reduce){
+  .done .panel>div,.go .ft,.go .fb{animation:none}
+  body.run:not(.peek) .run-hint{animation-timing-function:steps(1,end)}
+}
 </style>
 </head>
 <body>
@@ -62,24 +72,27 @@ input[type=number]{width:5em;font:600 1rem Inter,sans-serif;color:var(--fg);back
   <div class="dots"><i></i><i></i></div>
   <div class="panel" id="ps"></div>
 </div>
+<p class="hint run-hint" aria-hidden="true">Tap the timer for controls</p>
 <div class="ui">
+<div id="status" role="status"></div>
 
 <div class="row">
   <button class="main" id="go">Start</button>
   <button id="reset">Reset</button>
   <button id="full">Full screen</button>
 </div>
-<div class="custom"><label for="hr">Custom time</label><input id="hr" type="number" min="0" max="99" value="0" aria-label="Hours"><span>hr</span><input id="min" type="number" min="0" max="59" value="8" aria-label="Minutes"><span>min</span><button id="set">Set</button></div>
-<p class="hint">Space starts or pauses. R resets. F toggles full screen. While running, click anywhere to show or hide these controls.</p>
+<div class="custom"><label for="hr">Custom time</label><input id="hr" type="number" min="0" max="99" value="0" aria-label="Hours"><span>hr</span><input id="min" type="number" min="0" max="59" value="8" aria-label="Minutes"><span>min</span></div>
+<p class="hint"><span class="shortcuts">Space starts or pauses. R resets. F toggles full screen. </span>Tap the running timer to show or hide controls.</p>
 </div>
 <script>
 (function(){
+  var reducedMotion=window.matchMedia("(prefers-reduced-motion: reduce)");
   function Panel(el){
     el.innerHTML='<div class="t"><span></span></div><div class="b"><span></span></div><div class="ft"><span></span></div><div class="fb"><span></span></div>';
     var s=el.querySelectorAll('span'),cur=null,timer;
     this.set=function(v){
       if(v===cur)return;
-      if(cur===null){for(var i=0;i<4;i++)s[i].textContent=v;cur=v;return}
+      if(cur===null||reducedMotion.matches){clearTimeout(timer);el.classList.remove("go");for(var i=0;i<4;i++)s[i].textContent=v;cur=v;return}
       clearTimeout(timer);
       s[0].textContent=v;s[2].textContent=cur;s[3].textContent=v;
       el.classList.remove('go');void el.offsetWidth;el.classList.add('go');
@@ -114,11 +127,14 @@ input[type=number]{width:5em;font:600 1rem Inter,sans-serif;color:var(--fg);back
   function unlock(){try{if(wl){wl.release();wl=null}}catch(e){}}
   function tick(){
     remaining=endAt-Date.now();
-    if(remaining<=0){remaining=0;stop();clock.classList.add('done');goBtn.textContent='Start';beep();}
+    if(remaining<=0){remaining=0;stop();clock.classList.add('done');status.textContent="Time’s up";beep();}
     render();
   }
   function start(){
-    if(remaining<=0)remaining=total*1000;
+    var minutes=readDuration();
+    if(minutes===null)return;
+    if(minutes*60!==total||remaining<=0)setTotal(minutes);
+    status.textContent='';
     try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume()}catch(e){}
     clock.classList.remove('done');
     endAt=Date.now()+remaining;running=true;goBtn.textContent='Pause';document.body.classList.add('run');document.body.classList.remove('peek');
@@ -127,24 +143,57 @@ input[type=number]{width:5em;font:600 1rem Inter,sans-serif;color:var(--fg);back
   function stop(){running=false;clearInterval(iv);unlock();goBtn.textContent='Start';document.body.classList.remove('run','peek')}
   function setTotal(min){
     min=Math.min(5999,Math.max(1,Math.round(min)||1));
-    stop();clock.classList.remove('done');total=min*60;remaining=total*1000;
+    stop();status.textContent='';clock.classList.remove('done');total=min*60;remaining=total*1000;
     document.getElementById('hr').value=Math.floor(min/60);document.getElementById('min').value=min%60;render();mark();
   }
   function mark(){
     document.querySelectorAll('#presets button').forEach(function(b){b.setAttribute('aria-pressed',String(+b.dataset.m*60===total))});
   }
   
-  goBtn.onclick=function(){running?stop():start()};
+  var hoursInput=document.getElementById('hr'),minutesInput=document.getElementById('min');
+  var status=document.getElementById('status');
+  function readDuration(){
+    if(!hoursInput.reportValidity()||!minutesInput.reportValidity())return null;
+    var minutes=Number(hoursInput.value)*60+Number(minutesInput.value);
+    if(minutes===0){
+      minutesInput.setCustomValidity('Enter at least one minute.');
+      minutesInput.reportValidity();
+      minutesInput.setCustomValidity('');
+      return null;
+    }
+    return minutes;
+  }
+  function toggleTimer(){
+    if(!running){start();return}
+    tick();
+    if(running){stop();goBtn.textContent='Resume'}
+  }
+  function editDuration(){
+    if(running)toggleTimer();
+    var minutes=Number(hoursInput.value)*60+Number(minutesInput.value);
+    if(hoursInput.validity.valid&&minutesInput.validity.valid&&minutes>0&&minutes*60!==total){
+      total=minutes*60;
+      remaining=total*1000;
+      goBtn.textContent='Start';
+      clock.classList.remove('done');
+      status.textContent='';
+      render();
+    }
+  }
+  goBtn.onclick=toggleTimer;
   document.getElementById('reset').onclick=function(){setTotal(total/60)};
-  function fromInputs(){setTotal((+document.getElementById('hr').value||0)*60+(+document.getElementById('min').value||0))}
-  document.getElementById('set').onclick=fromInputs;
-  ['hr','min'].forEach(function(id){document.getElementById(id).addEventListener('keydown',function(e){if(e.key==='Enter')fromInputs()})});
+  [hoursInput,minutesInput].forEach(function(input){
+    input.addEventListener('input',editDuration);
+    input.addEventListener('keydown',function(e){
+      if(e.key==='Enter'){e.preventDefault();input.blur();if(!running)start()}
+    });
+  });
   function full(){try{document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()}catch(e){}}
   document.getElementById('full').onclick=full;
   document.addEventListener('keydown',function(e){
     var tag=(e.target.tagName||'').toLowerCase();
     if(tag==='input'||(tag==='button'&&e.key===' '))return;
-    if(e.key===' '){e.preventDefault();running?stop():start()}
+    if(e.key===' '){e.preventDefault();toggleTimer()}
     else if(e.key==='r'||e.key==='R')setTotal(total/60);
     else if(e.key==='f'||e.key==='F')full();
   });
